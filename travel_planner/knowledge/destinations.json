@@ -1,0 +1,27 @@
+[
+  {
+    "city": "Barcelona",
+    "style": ["nightlife", "culture"],
+    "budget": "medium"
+  },
+  {
+    "city": "Ibiza",
+    "style": ["nightlife"],
+    "budget": "high"
+  },
+  {
+    "city": "Santorini",
+    "style": ["relax"],
+    "budget": "high"
+  },
+  {
+    "city": "Prague",
+    "style": ["culture", "low_cost"],
+    "budget": "low"
+  },
+  {
+    "city": "Lisbon",
+    "style": ["relax", "culture"],
+    "budget": "medium"
+  }
+]
