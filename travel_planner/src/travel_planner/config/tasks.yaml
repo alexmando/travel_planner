@@ -1,35 +1,35 @@
 destination_selection_task:
   description: >
-    Analyze the user preferences and select the best destination.
+    Analyze the user's preferences and select the best destination.
 
-    User preferences:
+    Preferences:
     - Budget: {budget}
     - Travel period: {period}
     - Travel style: {style}
     - Duration: {duration}
 
-    Choose the most suitable destination among the available ones.
+    Choose the most suitable destination.
 
   expected_output: >
-    A detailed explanation of the selected destination.
+    Detailed explanation of the chosen destination.
 
   agent: travel_planner
 
 flight_search_task:
   description: >
-    Search for flights for the selected destination.
+    Search for the best flights for the selected destination.
 
   expected_output: >
-    Best flight options with prices and dates.
+    Flight options with prices and dates.
 
   agent: flight_agent
 
 hotel_search_task:
   description: >
-    Find hotels compatible with the user's budget and travel style.
+    Search for hotels compatible with the user's budget and style.
 
   expected_output: >
-    A list of recommended hotels.
+    Recommended hotels.
 
   agent: hotel_agent
 
@@ -38,15 +38,15 @@ activity_search_task:
     Suggest activities and attractions for the destination.
 
   expected_output: >
-    A list of recommended activities.
+    Recommended activities.
 
   agent: activity_agent
 
 final_plan_task:
   description: >
-    Combine flights, hotels and activities into a complete travel plan.
+    Combine all information into a complete travel plan.
 
   expected_output: >
-    A complete organized travel plan.
+    Complete travel itinerary.
 
   agent: travel_planner

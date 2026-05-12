@@ -1,27 +1,178 @@
 [
   {
     "city": "Barcelona",
-    "style": ["nightlife", "culture"],
-    "budget": "medium"
-  },
-  {
-    "city": "Ibiza",
-    "style": ["nightlife"],
-    "budget": "high"
-  },
-  {
-    "city": "Santorini",
-    "style": ["relax"],
-    "budget": "high"
-  },
-  {
-    "city": "Prague",
-    "style": ["culture", "low_cost"],
-    "budget": "low"
+    "country": "Spain",
+    "continent": "Europe",
+    "budget": "medium",
+    "styles": ["nightlife", "culture", "food", "beach"],
+    "best_for_age": ["18-25", "26-35", "36-50"],
+    "best_for": ["friends", "couples", "solo"],
+    "best_period": ["all year", "spring", "summer", "autumn"],
+    "description": "A lively coastal city with nightlife, architecture, beaches and great food."
   },
   {
     "city": "Lisbon",
-    "style": ["relax", "culture"],
-    "budget": "medium"
+    "country": "Portugal",
+    "continent": "Europe",
+    "budget": "medium",
+    "styles": ["relax", "culture", "food", "scenic"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "family"],
+    "best_period": ["all year", "spring", "autumn"],
+    "description": "A charming and relaxed city with hills, viewpoints, historic districts and good weather."
+  },
+  {
+    "city": "Prague",
+    "country": "Czech Republic",
+    "continent": "Europe",
+    "budget": "low",
+    "styles": ["culture", "budget", "history", "walks"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "friends"],
+    "best_period": ["all year", "spring", "autumn", "winter"],
+    "description": "A budget-friendly city with a strong historical atmosphere and beautiful architecture."
+  },
+  {
+    "city": "Amsterdam",
+    "country": "Netherlands",
+    "continent": "Europe",
+    "budget": "high",
+    "styles": ["culture", "nightlife", "cycling", "museums"],
+    "best_for_age": ["18-25", "26-35", "36-50"],
+    "best_for": ["solo", "couples", "friends"],
+    "best_period": ["spring", "summer", "autumn"],
+    "description": "A vibrant and stylish city with museums, canals, nightlife and an easygoing vibe."
+  },
+  {
+    "city": "Reykjavik",
+    "country": "Iceland",
+    "continent": "Europe",
+    "budget": "high",
+    "styles": ["nature", "relax", "adventure", "roadtrip"],
+    "best_for_age": ["26-35", "36-50", "50+"],
+    "best_for": ["couples", "solo", "family"],
+    "best_period": ["summer", "winter"],
+    "description": "A perfect base for nature lovers, northern lights and outdoor adventures."
+  },
+  {
+    "city": "Venice",
+    "country": "Italy",
+    "continent": "Europe",
+    "budget": "high",
+    "styles": ["culture", "romantic", "relax", "art"],
+    "best_for_age": ["26-35", "36-50", "50+"],
+    "best_for": ["couples", "family", "solo"],
+    "best_period": ["spring", "autumn"],
+    "description": "A romantic and artistic destination with unique canals, history and atmosphere."
+  },
+  {
+    "city": "Santorini",
+    "country": "Greece",
+    "continent": "Europe",
+    "budget": "high",
+    "styles": ["relax", "romantic", "beach", "luxury"],
+    "best_for_age": ["26-35", "36-50", "50+"],
+    "best_for": ["couples", "family"],
+    "best_period": ["summer", "spring", "autumn"],
+    "description": "A scenic island ideal for relaxation, sunsets and premium experiences."
+  },
+  {
+    "city": "New York",
+    "country": "USA",
+    "continent": "North America",
+    "budget": "high",
+    "styles": ["nightlife", "culture", "shopping", "food", "citylife"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "friends", "family"],
+    "best_period": ["all year"],
+    "description": "A global metropolis with endless activities, nightlife, museums and entertainment."
+  },
+  {
+    "city": "Vancouver",
+    "country": "Canada",
+    "continent": "North America",
+    "budget": "high",
+    "styles": ["nature", "relax", "adventure", "outdoor"],
+    "best_for_age": ["26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "family"],
+    "best_period": ["spring", "summer", "autumn", "winter"],
+    "description": "A city that combines urban life with mountains, sea views and outdoor activities."
+  },
+  {
+    "city": "Tokyo",
+    "country": "Japan",
+    "continent": "Asia",
+    "budget": "high",
+    "styles": ["culture", "nightlife", "tech", "food"],
+    "best_for_age": ["18-25", "26-35", "36-50"],
+    "best_for": ["solo", "couples", "friends"],
+    "best_period": ["spring", "autumn"],
+    "description": "A unique destination mixing tradition, modernity, food and vibrant districts."
+  },
+  {
+    "city": "Bangkok",
+    "country": "Thailand",
+    "continent": "Asia",
+    "budget": "medium",
+    "styles": ["nightlife", "culture", "food", "budget"],
+    "best_for_age": ["18-25", "26-35", "36-50"],
+    "best_for": ["solo", "friends", "couples"],
+    "best_period": ["winter", "autumn", "spring"],
+    "description": "A dynamic and affordable city with temples, street food and nightlife."
+  },
+  {
+    "city": "Bali",
+    "country": "Indonesia",
+    "continent": "Asia",
+    "budget": "medium",
+    "styles": ["relax", "nature", "beach", "wellness", "adventure"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "family"],
+    "best_period": ["summer", "winter", "spring"],
+    "description": "A popular destination for relaxation, wellness, beaches and nature."
+  },
+  {
+    "city": "Cape Town",
+    "country": "South Africa",
+    "continent": "Africa",
+    "budget": "medium",
+    "styles": ["nature", "adventure", "beach", "wine"],
+    "best_for_age": ["26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "friends", "family"],
+    "best_period": ["summer", "spring", "autumn"],
+    "description": "A scenic city with mountains, ocean, outdoor experiences and great food."
+  },
+  {
+    "city": "Marrakech",
+    "country": "Morocco",
+    "continent": "Africa",
+    "budget": "medium",
+    "styles": ["culture", "relax", "shopping", "desert"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "family"],
+    "best_period": ["autumn", "winter", "spring"],
+    "description": "A colorful destination with markets, traditions, desert vibes and rich culture."
+  },
+  {
+    "city": "Rio de Janeiro",
+    "country": "Brazil",
+    "continent": "South America",
+    "budget": "medium",
+    "styles": ["nightlife", "beach", "culture", "music"],
+    "best_for_age": ["18-25", "26-35", "36-50"],
+    "best_for": ["friends", "couples", "solo"],
+    "best_period": ["summer", "spring"],
+    "description": "A warm and energetic destination famous for beaches, music and nightlife."
+  },
+  {
+    "city": "Sydney",
+    "country": "Australia",
+    "continent": "Oceania",
+    "budget": "high",
+    "styles": ["beach", "citylife", "culture", "outdoor"],
+    "best_for_age": ["18-25", "26-35", "36-50", "50+"],
+    "best_for": ["solo", "couples", "family"],
+    "best_period": ["summer", "spring", "autumn"],
+    "description": "A modern and scenic city with beaches, iconic landmarks and outdoor life."
   }
 ]

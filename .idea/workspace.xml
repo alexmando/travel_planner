@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="90ba39e0-1f76-4a62-a816-4ce7dcdb60ff" name="Changes" comment="prima commit" />
+    <list default="true" id="90ba39e0-1f76-4a62-a816-4ce7dcdb60ff" name="Changes" comment="prima commit">
+      <change afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/destination_tool.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/skyscanner_client.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/knowledge/destinations.json" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/knowledge/destinations.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/config/agents.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/config/agents.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/config/tasks.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/config/tasks.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/crew.py" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/crew.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/activity_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/activity_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/flight_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/flight_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/hotel_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/travel_planner/src/travel_planner/tools/hotel_tool.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -63,7 +75,15 @@
       <option name="project" value="LOCAL" />
       <updated>1778583826957</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="prima commit">
+      <option name="closed" value="true" />
+      <created>1778584055037</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1778584055037</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
