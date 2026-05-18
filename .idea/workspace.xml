@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="90ba39e0-1f76-4a62-a816-4ce7dcdb60ff" name="Changes" comment="prima commit">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/bin/Activate.ps1" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/bin/activate" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/bin/activate.csh" beforeDir="false" />
@@ -175,7 +176,7 @@
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/_webp.cpython-311-darwin.so" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/_webp.pyi" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/features.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/py.typed" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/py.typed" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/PIL/report.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/_cffi_backend.cpython-311-darwin.so" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.venv/lib/python3.11/site-packages/_distutils_hack/__init__.py" beforeDir="false" />
@@ -10997,7 +10998,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1778431223738</updated>
-      <workItem from="1779111785369" duration="177000" />
+      <workItem from="1779111785369" duration="357000" />
     </task>
     <task id="LOCAL-00001" summary="prima commit">
       <option name="closed" value="true" />
