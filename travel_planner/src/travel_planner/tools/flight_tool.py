@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+import json
 from typing import Any, Type
 
 from crewai.tools import BaseTool
@@ -10,8 +10,8 @@ from .skyscanner_client import SkyscannerClient
 
 
 class FlightSearchInput(BaseModel):
-    origin: str = Field(..., description="Origin city, airport IATA code or Skyscanner entityId")
-    destination: str = Field(..., description="Destination city, airport IATA code or Skyscanner entityId")
+    origin: str = Field(..., description="Origin city or airport code")
+    destination: str = Field(..., description="Destination city or airport code")
     departure_date: str = Field(..., description="YYYY-MM-DD")
     return_date: str | None = Field(default=None, description="YYYY-MM-DD for round trip, or empty for one way")
     adults: int = Field(default=1, ge=1, le=9)
@@ -21,35 +21,27 @@ class FlightSearchInput(BaseModel):
 class FlightSearchTool(BaseTool):
     name: str = "flight_search_tool"
     description: str = (
-        "Search flights with Skyscanner Autosuggest + Flights Live Prices API; "
-        "falls back to a simulated result if the API key is missing."
+        "Use RapidAPI sky-scrapper flight discovery endpoint and return a readable summary. "
+        "Falls back to simulated options if the API key is missing."
     )
     args_schema: Type[BaseModel] = FlightSearchInput
 
-    def _parse_date(self, value: str) -> dict[str, int]:
-        dt = datetime.strptime(value, "%Y-%m-%d")
-        return {"year": dt.year, "month": dt.month, "day": dt.day}
-
-    def _entity_from_autosuggest(self, client: SkyscannerClient, term: str) -> dict[str, Any] | None:
-        # If the user already passed an entityId / IATA-like code, keep it.
-        if term and (term.isdigit() or len(term) in (3, 4)):
-            return {"entityId": term}
-
+    def _pretty(self, payload: Any) -> str:
         try:
-            result = client.autosuggest_flights(term, limit=1, is_destination=True)
-            places = result.get("places", []) if isinstance(result, dict) else []
-            return places[0] if places else None
+            text = json.dumps(payload, indent=2, ensure_ascii=False)
         except Exception:
-            return None
+            text = str(payload)
+        return text[:6000] if len(text) > 6000 else text
 
-    def _mock_result(self, origin: str, destination: str, departure_date: str, return_date: str | None) -> str:
+    def _mock_result(self, origin: str, destination: str, departure_date: str, return_date: str | None, budget: str) -> str:
         lines = [
-            "Skyscanner API not available or failed; using simulated flight options.",
+            "RapidAPI flight endpoint not available or failed; using simulated flight options.",
             f"Route: {origin} -> {destination}",
             f"Departure: {departure_date}",
         ]
         if return_date:
             lines.append(f"Return: {return_date}")
+        lines.append(f"Budget: {budget}")
         lines.extend(
             [
                 "- Low cost option: €149 | 1 stop | baggage extra",
@@ -71,45 +63,23 @@ class FlightSearchTool(BaseTool):
         client = SkyscannerClient()
 
         if not client.enabled:
-            return self._mock_result(origin, destination, departure_date, return_date)
+            return self._mock_result(origin, destination, departure_date, return_date, budget)
 
         try:
-            origin_place = self._entity_from_autosuggest(client, origin)
-            destination_place = self._entity_from_autosuggest(client, destination)
-
-            if not origin_place or not destination_place:
-                return (
-                    "Could not resolve origin or destination via Autosuggest. "
-                    "Provide a city/airport name or a Skyscanner entityId. "
-                    f"Origin resolved: {bool(origin_place)} | Destination resolved: {bool(destination_place)}"
-                )
-
-            origin_entity = origin_place.get("entityId") or origin_place.get("iataCode") or origin
-            destination_entity = destination_place.get("entityId") or destination_place.get("iataCode") or destination
-
-            query_leg: dict[str, Any] = {
-                "origin_place_id": origin_entity,
-                "destination_place_id": destination_entity,
-                "date": self._parse_date(departure_date),
-            }
-
-            if return_date:
-                query_leg["returnDate"] = self._parse_date(return_date)
-
-            create_payload = [{"queryLegs": [query_leg], "adults": adults}]
-            # If the live endpoint expects a slightly different shape in your contract,
-            # this is the only place you should adapt.
-            create_response = client.flights_live_create(query_leg.get("queryLegs", [query_leg]), adults=adults)
-            final_response = client.wait_and_poll(
-                create_response,
-                lambda token: client.flights_live_poll(token, limit=10, offset=0),
+            api_result = client.search_flight_everywhere_details(
+                currency="EUR",
+                one_way=return_date is None,
             )
 
             return (
-                "Skyscanner flight search completed.\n"
-                f"Resolved origin: {origin_place.get('name', origin)} | entityId={origin_place.get('entityId')}\n"
-                f"Resolved destination: {destination_place.get('name', destination)} | entityId={destination_place.get('entityId')}\n\n"
-                f"Raw response:\n{final_response}"
+                "RapidAPI flight endpoint reached successfully.\n"
+                f"Requested route: {origin} -> {destination}\n"
+                f"Departure date: {departure_date}\n"
+                f"Return date: {return_date or 'one way'}\n"
+                f"Adults: {adults}\n"
+                f"Budget: {budget}\n\n"
+                "Live API response:\n"
+                f"{self._pretty(api_result)}"
             )
         except Exception as exc:
-            return self._mock_result(origin, destination, departure_date, return_date) + f"\n\nAPI error: {exc}"
+            return self._mock_result(origin, destination, departure_date, return_date, budget) + f"\n\nAPI error: {exc}"

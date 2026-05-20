@@ -175,8 +175,8 @@ hotel_task = Task(
         4. Recommend the best accommodation option
 
         USER DATA:
-        - Check-in date: {departure_date}
-        - Check-out date: {return_date}
+        - Check-in date: {checkin_date}
+        - Check-out date: {checkout_date}
         - Budget: {budget}
         - Travel style: {style}
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from typing import Any, Optional
@@ -16,39 +17,57 @@ except Exception:
 
 class SkyscannerClient:
     """
-    Thin client for Skyscanner Travel APIs.
+    RapidAPI client for sky-scrapper.
 
     Required env vars:
-      SKYSCANNER_API_KEY
-      SKYSCANNER_MARKET   (default: IT)
-      SKYSCANNER_LOCALE   (default: it-IT)
-      SKYSCANNER_CURRENCY (default: EUR)
+      RAPIDAPI_KEY
+      RAPIDAPI_HOST (default: sky-scrapper.p.rapidapi.com)
+
+    Optional env vars:
+      RAPIDAPI_BASE_URL
+      RAPIDAPI_TIMEOUT
+      RAPIDAPI_MAX_RETRIES
+      RAPIDAPI_BACKOFF_SEC
     """
 
     def __init__(
             self,
             api_key: Optional[str] = None,
-            market: Optional[str] = None,
-            locale: Optional[str] = None,
-            currency: Optional[str] = None,
-            timeout: int = 30,
+            host: Optional[str] = None,
+            base_url: Optional[str] = None,
+            timeout: Optional[int] = None,
+            max_retries: Optional[int] = None,
+            backoff_seconds: Optional[float] = None,
     ) -> None:
-        self.api_key = api_key or os.getenv("SKYSCANNER_API_KEY", "").strip()
-        self.market = market or os.getenv("SKYSCANNER_MARKET", "IT").strip()
-        self.locale = locale or os.getenv("SKYSCANNER_LOCALE", "it-IT").strip()
-        self.currency = currency or os.getenv("SKYSCANNER_CURRENCY", "EUR").strip()
-        self.timeout = timeout
-        self.base_url = "https://partners.api.skyscanner.net"
+        self.api_key = (
+                api_key
+                or os.getenv("RAPIDAPI_KEY", "").strip()
+                or os.getenv("SKYSCANNER_API_KEY", "").strip()
+        )
+        self.host = (
+                host
+                or os.getenv("RAPIDAPI_HOST", "").strip()
+                or "sky-scrapper.p.rapidapi.com"
+        )
+        self.base_url = (
+                base_url
+                or os.getenv("RAPIDAPI_BASE_URL", "").strip()
+                or f"https://{self.host}"
+        )
+        self.timeout = timeout or int(os.getenv("RAPIDAPI_TIMEOUT", "30"))
+        self.max_retries = max_retries or int(os.getenv("RAPIDAPI_MAX_RETRIES", "2"))
+        self.backoff_seconds = backoff_seconds or float(os.getenv("RAPIDAPI_BACKOFF_SEC", "2"))
 
     @property
     def enabled(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_key and self.host)
 
     def _headers(self) -> dict[str, str]:
         return {
-            "x-api-key": self.api_key,
-            "accept": "application/json",
-            "content-type": "application/json",
+            "x-rapidapi-key": self.api_key,
+            "x-rapidapi-host": self.host,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
 
     def request(
@@ -56,122 +75,86 @@ class SkyscannerClient:
             method: str,
             path: str,
             *,
-            json_body: Optional[dict[str, Any]] = None,
             params: Optional[dict[str, Any]] = None,
+            json_body: Optional[dict[str, Any]] = None,
     ) -> Any:
+        if not self.enabled:
+            raise RuntimeError(
+                "RapidAPI client disabled. Check RAPIDAPI_KEY and RAPIDAPI_HOST in .env."
+            )
+
         url = f"{self.base_url}{path}"
-        response = requests.request(
-            method=method.upper(),
-            url=url,
-            headers=self._headers(),
-            json=json_body,
-            params=params,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        if not response.text.strip():
-            return {}
-        try:
-            return response.json()
-        except Exception:
-            return {"raw": response.text}
+        last_error: Exception | None = None
 
-    def autosuggest_flights(self, search_term: str, *, limit: int = 5, is_destination: bool = True) -> Any:
-        payload = {
-            "query": {
-                "market": self.market,
-                "locale": self.locale,
-                "searchTerm": search_term,
-                "includedEntityTypes": ["PLACE_TYPE_CITY", "PLACE_TYPE_AIRPORT", "PLACE_TYPE_COUNTRY"],
-            },
-            "limit": limit,
-            "isDestination": is_destination,
-        }
-        return self.request("POST", "/apiservices/v3/autosuggest/flights", json_body=payload)
-
-    def autosuggest_hotels(self, search_term: str, *, limit: int = 5) -> Any:
-        payload = {
-            "query": {
-                "market": self.market,
-                "locale": self.locale,
-                "searchTerm": search_term,
-                "includedEntityTypes": ["PLACE_TYPE_CITY", "PLACE_TYPE_COUNTRY", "PLACE_TYPE_AREA"],
-            },
-            "limit": limit,
-        }
-        return self.request("POST", "/apiservices/v3/autosuggest/hotels", json_body=payload)
-
-    def flights_live_create(self, query_legs: list[dict[str, Any]], adults: int = 1) -> Any:
-        payload = {
-            "market": self.market,
-            "locale": self.locale,
-            "currency": self.currency,
-            "queryLegs": query_legs,
-            "adults": adults,
-        }
-        return self.request("POST", "/apiservices/v3/flights/live/search/create", json_body=payload)
-
-    def flights_live_poll(self, session_token: str, *, limit: int = 10, offset: int = 0) -> Any:
-        payload = {
-            "pagination": {"offset": offset, "limit": limit},
-        }
-        return self.request(
-            "POST",
-            f"/apiservices/v3/flights/live/search/poll/{session_token}",
-            json_body=payload,
-        )
-
-    def flights_refresh_price(self, session_token: str, itinerary_id: str) -> Any:
-        payload = {"itineraryId": itinerary_id}
-        return self.request(
-            "POST",
-            f"/apiservices/v3/flights/live/itineraryrefresh/create/{session_token}",
-            json_body=payload,
-        )
-
-    def hotels_live_create(self, query: dict[str, Any], initial_page_size: int = 10) -> Any:
-        payload = {
-            "query": query,
-            "initialPageSize": initial_page_size,
-        }
-        return self.request("POST", "/apiservices/v1/hotels/live/search/create", json_body=payload)
-
-    def hotels_live_poll(self, session_token: str, *, limit: int = 10, offset: int = 0) -> Any:
-        payload = {
-            "pagination": {"offset": offset, "limit": limit},
-        }
-        return self.request(
-            "POST",
-            f"/apiservices/v1/hotels/live/search/poll/{session_token}",
-            json_body=payload,
-        )
-
-    def geo_flights(self) -> Any:
-        return self.request("GET", f"/apiservices/v3/geo/hierarchy/flights/{self.locale}")
-
-    def wait_and_poll(
-            self,
-            create_result: Any,
-            poll_fn,
-            *,
-            max_polls: int = 3,
-            sleep_seconds: float = 1.2,
-    ) -> Any:
-        """
-        Helper for create/poll flows.
-        """
-        if not isinstance(create_result, dict):
-            return create_result
-
-        session_token = create_result.get("sessionToken") or create_result.get("session_token")
-        if not session_token:
-            return create_result
-
-        last = create_result
-        for _ in range(max_polls):
-            time.sleep(sleep_seconds)
+        for attempt in range(self.max_retries + 1):
             try:
-                last = poll_fn(session_token)
-            except Exception:
-                break
-        return last
+                response = requests.request(
+                    method=method.upper(),
+                    url=url,
+                    headers=self._headers(),
+                    params=params,
+                    json=json_body,
+                    timeout=self.timeout,
+                )
+
+                if response.status_code in {429, 500, 502, 503, 504} and attempt < self.max_retries:
+                    time.sleep(self.backoff_seconds * (attempt + 1))
+                    continue
+
+                response.raise_for_status()
+
+                if not response.text.strip():
+                    return {}
+
+                try:
+                    return response.json()
+                except Exception:
+                    return {"raw": response.text}
+
+            except requests.HTTPError as exc:
+                status_code = exc.response.status_code if exc.response is not None else None
+                if status_code in {429, 500, 502, 503, 504} and attempt < self.max_retries:
+                    time.sleep(self.backoff_seconds * (attempt + 1))
+                    continue
+                raise
+            except requests.RequestException as exc:
+                last_error = exc
+                if attempt < self.max_retries:
+                    time.sleep(self.backoff_seconds * (attempt + 1))
+                    continue
+                raise
+
+        if last_error is not None:
+            raise last_error
+
+        return {}
+
+    def search_flight_everywhere_details(
+            self,
+            *,
+            currency: str = "EUR",
+            one_way: bool = False,
+    ) -> Any:
+        return self.request(
+            "GET",
+            "/api/v1/flights/searchFlightEverywhereDetails",
+            params={
+                "currency": currency,
+                "oneWay": str(one_way).lower(),
+            },
+        )
+
+    def search_hotel_destination(
+            self,
+            query: str,
+    ) -> Any:
+        return self.request(
+            "GET",
+            "/api/v1/hotels/searchDestinationOrHotel",
+            params={
+                "query": query,
+            },
+        )
+
+    def health_check(self) -> Any:
+        return self.search_hotel_destination("new")
