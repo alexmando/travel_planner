@@ -1,6 +1,21 @@
-from crewai import Agent, Crew, Process, Task
-from langchain_openai import ChatOpenAI
+import os
+from dotenv import load_dotenv
+import litellm
+from litellm import completion
 
+# Patch per rimuovere cache_breakpoint (precauzione)
+original_completion = litellm.completion
+
+def patched_completion(*args, **kwargs):
+    if 'messages' in kwargs:
+        for msg in kwargs['messages']:
+            if 'cache_breakpoint' in msg:
+                del msg['cache_breakpoint']
+    return original_completion(*args, **kwargs)
+
+litellm.completion = patched_completion
+
+from crewai import Agent, Crew, Process, Task, LLM
 from travel_planner.tools import (
     DestinationSearchTool,
     FlightSearchTool,
@@ -8,19 +23,26 @@ from travel_planner.tools import (
     ActivitySearchTool,
 )
 
+load_dotenv()
+
 # =========================
 # LLM
 # =========================
+# Modelli Groq attualmente supportati:
+# - "groq/llama-3.3-70b-versatile"
+# - "groq/mixtral-8x7b-32768"
+# - "groq/gemma2-9b-it"
 
-llm = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0.7
+llm = LLM(
+    model="groq/llama-3.3-70b-versatile",   # <--- cambiato
+    temperature=0.5,
+    drop_params=True,
+    additional_drop_params=["stop"]
 )
 
 # =========================
 # AGENTS
 # =========================
-
 travel_planner_agent = Agent(
     role="Travel Planner Agent",
     goal=(
@@ -29,72 +51,55 @@ travel_planner_agent = Agent(
     ),
     backstory=(
         "You are an expert AI travel planner specialized in organizing complete trips. "
-        "You analyze user preferences and coordinate specialized travel agents "
-        "to create coherent, optimized and personalized travel experiences. "
-        "You are responsible for selecting the most suitable destination "
-        "among different possible destinations."
+        "You coordinate specialized agents and select the best destination."
     ),
-    verbose=True,
-    allow_delegation=True,
+    max_iter=2,
+    allow_delegation=False,
+    verbose=False,
     llm=llm,
-    tools=[DestinationSearchTool()]
+    tools=[DestinationSearchTool()],
 )
 
 flight_agent = Agent(
     role="Flight Search Specialist",
-    goal=(
-        "Find the best flight options according to destination, budget and dates."
-    ),
-    backstory=(
-        "You are an expert in airline route planning and flight comparison. "
-        "You search flights using Skyscanner APIs and identify the most convenient "
-        "travel solutions considering cost, comfort and travel duration."
-    ),
-    verbose=True,
+    goal="Find the best flight options according to destination, budget and dates.",
+    backstory="You are an expert in airline route planning and flight comparison.",
+    verbose=False,
+    max_iter=2,
     allow_delegation=False,
     llm=llm,
-    tools=[FlightSearchTool()]
+    tools=[FlightSearchTool()],
 )
 
 hotel_agent = Agent(
     role="Hotel Specialist",
-    goal=(
-        "Find the best accommodation solutions for the selected destination."
-    ),
-    backstory=(
-        "You are a travel accommodation expert specialized in finding hotels "
-        "and stays optimized for budget, comfort and user preferences."
-    ),
-    verbose=True,
+    goal="Find the best accommodation solutions for the selected destination.",
+    backstory="You are a travel accommodation expert.",
+    verbose=False,
+    max_iter=2,
     allow_delegation=False,
     llm=llm,
-    tools=[HotelSearchTool()]
+    tools=[HotelSearchTool()],
 )
 
 activity_agent = Agent(
     role="Activity Specialist",
-    goal=(
-        "Suggest the best activities and attractions for the selected destination."
-    ),
-    backstory=(
-        "You are a tourism and entertainment expert. "
-        "You recommend activities based on the travel style requested "
-        "by the user such as nightlife, relaxation, adventure, culture or food."
-    ),
-    verbose=True,
+    goal="Suggest the best activities for the destination.",
+    backstory="You are a tourism expert.",
+    verbose=False,
+    max_iter=2,
     allow_delegation=False,
     llm=llm,
-    tools=[ActivitySearchTool()]
+    tools=[ActivitySearchTool()],
 )
 
 # =========================
 # TASKS
 # =========================
-
 destination_task = Task(
     description=(
         """
-        The user wants help organizing a trip.
+        Analyze user preferences and select best destination.
 
         USER PREFERENCES:
         - Budget: {budget}
@@ -113,7 +118,7 @@ destination_task = Task(
         5. Provide a concise destination summary
 
         IMPORTANT:
-        - The user DOES NOT initially choose the destination
+        - The user does NOT initially choose the destination
         - You must autonomously decide the destination
         - Consider budget compatibility carefully
         - Consider the travel style carefully
@@ -126,7 +131,7 @@ destination_task = Task(
         "- compatibility with user preferences\n"
         "- short destination overview"
     ),
-    agent=travel_planner_agent
+    agent=travel_planner_agent,
 )
 
 flight_task = Task(
@@ -160,7 +165,7 @@ flight_task = Task(
         "- explanation of why the option fits the budget"
     ),
     agent=flight_agent,
-    context=[destination_task]
+    context=[destination_task],
 )
 
 hotel_task = Task(
@@ -193,7 +198,7 @@ hotel_task = Task(
         "- explanation of why it fits the user"
     ),
     agent=hotel_agent,
-    context=[destination_task]
+    context=[destination_task],
 )
 
 activity_task = Task(
@@ -222,7 +227,7 @@ activity_task = Task(
         "- compatibility with user interests"
     ),
     agent=activity_agent,
-    context=[destination_task]
+    context=[destination_task],
 )
 
 final_plan_task = Task(
@@ -258,28 +263,27 @@ final_plan_task = Task(
         destination_task,
         flight_task,
         hotel_task,
-        activity_task
-    ]
+        activity_task,
+    ],
 )
 
 # =========================
 # CREW
 # =========================
-
 travel_crew = Crew(
     agents=[
         travel_planner_agent,
         flight_agent,
         hotel_agent,
-        activity_agent
+        activity_agent,
     ],
     tasks=[
         destination_task,
         flight_task,
         hotel_task,
         activity_task,
-        final_plan_task
+        final_plan_task,
     ],
     process=Process.sequential,
-    verbose=True
+    verbose=True,
 )

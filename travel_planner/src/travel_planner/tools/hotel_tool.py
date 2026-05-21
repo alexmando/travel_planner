@@ -33,13 +33,13 @@ class HotelSearchTool(BaseTool):
             text = str(payload)
         return text[:6000] if len(text) > 6000 else text
 
-    def _mock_result(self, destination: str, departure_date: str, return_date: str, budget: str) -> str:
+    def _mock_result(self, destination: str, checkin_date: str, checkout_date: str, budget: str) -> str:
         return "\n".join(
             [
                 "RapidAPI hotel endpoint not available or failed; using simulated hotel options.",
                 f"Destination: {destination}",
-                f"Check-in: {departure_date}",
-                f"Check-out: {return_date}",
+                f"Check-in: {checkin_date}",
+                f"Check-out: {checkout_date}",
                 f"Budget: {budget}",
                 "- Budget stay: €70/night | central location",
                 "- Mid-range hotel: €140/night | breakfast included",
@@ -59,7 +59,7 @@ class HotelSearchTool(BaseTool):
         client = SkyscannerClient()
 
         if not client.enabled:
-            return self._mock_result(destination, departure_date, return_date, budget)
+            return self._mock_result(destination, checkin_date, checkout_date, budget)
 
         try:
             lookup = client.search_hotel_destination(destination)
@@ -67,8 +67,8 @@ class HotelSearchTool(BaseTool):
             return (
                 "RapidAPI hotel destination lookup reached successfully.\n"
                 f"Requested destination: {destination}\n"
-                f"Check-in date: {departure_date}\n"
-                f"Check-out date: {return_date}\n"
+                f"Check-in date: {checkin_date}\n"
+                f"Check-out date: {checkout_date}\n"
                 f"Adults: {adults}\n"
                 f"Rooms: {rooms}\n"
                 f"Budget: {budget}\n\n"
@@ -76,4 +76,4 @@ class HotelSearchTool(BaseTool):
                 f"{self._pretty(lookup)}"
             )
         except Exception as exc:
-            return self._mock_result(destination, departure_date, return_date, budget) + f"\n\nAPI error: {exc}"
+            return self._mock_result(destination, checkin_date, checkout_date, budget) + f"\n\nAPI error: {exc}"

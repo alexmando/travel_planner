@@ -8,7 +8,7 @@ from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 
-DATA_PATH = Path(__file__).resolve().parents[1] / "knowledge" / "destinations.json"
+DATA_PATH = Path(__file__).resolve().parents[3] / "knowledge" / "destinations.json"
 
 
 class DestinationSearchInput(BaseModel):
