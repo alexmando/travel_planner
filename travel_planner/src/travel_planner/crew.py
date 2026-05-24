@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import litellm
 from litellm import completion
+from crewai.project import CrewBase, agent, crew, task
 
 # Patch per rimuovere cache_breakpoint (precauzione)
 original_completion = litellm.completion
@@ -25,265 +26,78 @@ from travel_planner.tools import (
 
 load_dotenv()
 
-# =========================
-# LLM
-# =========================
-# Modelli Groq attualmente supportati:
-# - "groq/llama-3.3-70b-versatile"
-# - "groq/mixtral-8x7b-32768"
-# - "groq/gemma2-9b-it"
+@CrewBase
+class TravelPlanner:
+    llm = LLM(
+        model=os.getenv("MODEL"),
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
 
-llm = LLM(
-    model="groq/llama-3.3-70b-versatile",   # <--- cambiato
-    temperature=0.5,
-    drop_params=True,
-    additional_drop_params=["stop"]
-)
+    @agent
+    def travel_manager(self) -> Agent:
+        return Agent(config=self.agents_config["travel_manager"],
+                     llm=self.llm,
+                     max_iter=1,
+                     verbose=True)
 
-# =========================
-# AGENTS
-# =========================
-travel_planner_agent = Agent(
-    role="Travel Planner Agent",
-    goal=(
-        "Create the best possible travel plan based on the user's preferences, "
-        "budget, travel period, and desired experience."
-    ),
-    backstory=(
-        "You are an expert AI travel planner specialized in organizing complete trips. "
-        "You coordinate specialized agents and select the best destination."
-    ),
-    max_iter=2,
-    allow_delegation=False,
-    verbose=False,
-    llm=llm,
-    tools=[DestinationSearchTool()],
-)
+    @agent
+    def flight_agent(self) -> Agent:
+        return Agent(config=self.agents_config["flight_agent"],
+                     llm=self.llm,
+                     tools=[FlightSearchTool()],
+                     max_iter=1,
+                     verbose=True)
 
-flight_agent = Agent(
-    role="Flight Search Specialist",
-    goal="Find the best flight options according to destination, budget and dates.",
-    backstory="You are an expert in airline route planning and flight comparison.",
-    verbose=False,
-    max_iter=2,
-    allow_delegation=False,
-    llm=llm,
-    tools=[FlightSearchTool()],
-)
+    @agent
+    def hotel_agent(self) -> Agent:
+        return Agent(config=self.agents_config["hotel_agent"],
+                     tools=[HotelSearchTool()],
+                     llm=self.llm,
+                     max_iter=1,
+                     verbose=True)
+    @agent
+    def activity_agent(self) -> Agent:
+        return Agent(config=self.agents_config["activity_agent"],
+            verbose=False,
+            max_iter=2,
+            allow_delegation=False,
+            llm=self.llm,
+            tools=[ActivitySearchTool()],
+        )
 
-hotel_agent = Agent(
-    role="Hotel Specialist",
-    goal="Find the best accommodation solutions for the selected destination.",
-    backstory="You are a travel accommodation expert.",
-    verbose=False,
-    max_iter=2,
-    allow_delegation=False,
-    llm=llm,
-    tools=[HotelSearchTool()],
-)
+    @task
+    def travel_summary_task(self) -> Task:
+        return Task(config=self.tasks_config["destination_task"])
 
-activity_agent = Agent(
-    role="Activity Specialist",
-    goal="Suggest the best activities for the destination.",
-    backstory="You are a tourism expert.",
-    verbose=False,
-    max_iter=2,
-    allow_delegation=False,
-    llm=llm,
-    tools=[ActivitySearchTool()],
-)
 
-# =========================
-# TASKS
-# =========================
-destination_task = Task(
-    description=(
-        """
-        Analyze user preferences and select best destination.
+    @task
+    def search_flights_task(self) -> Task:
+        return Task(config=self.tasks_config["flight_task"])
 
-        USER PREFERENCES:
-        - Budget: {budget}
-        - Travel period: {period}
-        - Preferred travel style: {style}
-        - Age group: {age_group}
-        - Departure city: {origin}
-        - Departure date: {departure_date}
-        - Return date: {return_date}
 
-        Your job is to:
-        1. Analyze the user profile
-        2. Use the destination search tool
-        3. Select the BEST destination
-        4. Explain clearly WHY this destination is suitable
-        5. Provide a concise destination summary
+    @task
+    def search_hotels_task(self) -> Task:
+        return Task(config=self.tasks_config["hotel_task"])
 
-        IMPORTANT:
-        - The user does NOT initially choose the destination
-        - You must autonomously decide the destination
-        - Consider budget compatibility carefully
-        - Consider the travel style carefully
-        """
-    ),
-    expected_output=(
-        "A complete destination recommendation including:\n"
-        "- selected city and country\n"
-        "- motivation of the choice\n"
-        "- compatibility with user preferences\n"
-        "- short destination overview"
-    ),
-    agent=travel_planner_agent,
-)
+    @task
+    def search_activity_task(self) -> Task:
+        return Task(config=self.tasks_config["activity_task"])
 
-flight_task = Task(
-    description=(
-        """
-        Find flight options for the destination selected by the planner agent.
+    @task
+    def final_plan_task_task(self) -> Task:
+        return Task(config=self.tasks_config["final_plan_task"])
 
-        You must:
-        1. Analyze the selected destination
-        2. Search available flights
-        3. Prioritize solutions compatible with the user's budget
-        4. Suggest the best available option
-
-        USER DATA:
-        - Departure city: {origin}
-        - Departure date: {departure_date}
-        - Return date: {return_date}
-        - Budget: {budget}
-
-        IMPORTANT:
-        - Use the flight search tool
-        - Focus on realistic travel options
-        - Explain why the suggested flight is appropriate
-        """
-    ),
-    expected_output=(
-        "A flight recommendation including:\n"
-        "- airline or flight type\n"
-        "- estimated price\n"
-        "- travel dates\n"
-        "- explanation of why the option fits the budget"
-    ),
-    agent=flight_agent,
-    context=[destination_task],
-)
-
-hotel_task = Task(
-    description=(
-        """
-        Find accommodation solutions for the destination selected by the planner.
-
-        You must:
-        1. Analyze the selected destination
-        2. Search hotels or accommodations
-        3. Match the user's budget and travel style
-        4. Recommend the best accommodation option
-
-        USER DATA:
-        - Check-in date: {checkin_date}
-        - Check-out date: {checkout_date}
-        - Budget: {budget}
-        - Travel style: {style}
-
-        IMPORTANT:
-        - Use the hotel search tool
-        - Prefer coherent solutions with the user profile
-        """
-    ),
-    expected_output=(
-        "A hotel recommendation including:\n"
-        "- hotel/accommodation name\n"
-        "- estimated price\n"
-        "- accommodation style\n"
-        "- explanation of why it fits the user"
-    ),
-    agent=hotel_agent,
-    context=[destination_task],
-)
-
-activity_task = Task(
-    description=(
-        """
-        Suggest activities and attractions for the selected destination.
-
-        You must:
-        1. Analyze the destination
-        2. Understand the user's travel style
-        3. Recommend suitable activities
-
-        USER DATA:
-        - Travel style: {style}
-        - Age group: {age_group}
-
-        IMPORTANT:
-        - Use the activity tool
-        - Activities must match the user's interests
-        """
-    ),
-    expected_output=(
-        "A list of recommended activities including:\n"
-        "- attraction/activity name\n"
-        "- short explanation\n"
-        "- compatibility with user interests"
-    ),
-    agent=activity_agent,
-    context=[destination_task],
-)
-
-final_plan_task = Task(
-    description=(
-        """
-        Create the FINAL COMPLETE TRAVEL PLAN.
-
-        You must combine:
-        - selected destination
-        - flight recommendation
-        - hotel recommendation
-        - activities and attractions
-
-        The final result must be:
-        - clear
-        - well organized
-        - realistic
-        - personalized
-
-        Structure the final response professionally.
-        """
-    ),
-    expected_output=(
-        "A complete travel plan containing:\n"
-        "1. Destination overview\n"
-        "2. Flight information\n"
-        "3. Hotel information\n"
-        "4. Activities and attractions\n"
-        "5. Final travel summary"
-    ),
-    agent=travel_planner_agent,
-    context=[
-        destination_task,
-        flight_task,
-        hotel_task,
-        activity_task,
-    ],
-)
-
-# =========================
-# CREW
-# =========================
-travel_crew = Crew(
-    agents=[
-        travel_planner_agent,
-        flight_agent,
-        hotel_agent,
-        activity_agent,
-    ],
-    tasks=[
-        destination_task,
-        flight_task,
-        hotel_task,
-        activity_task,
-        final_plan_task,
-    ],
-    process=Process.sequential,
-    verbose=True,
-)
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=[
+                self.travel_manager,
+                self.flight_agent,
+                self.hotel_agent,
+                self.activity_agent,
+            ],
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+            max_rpm=10,
+        )

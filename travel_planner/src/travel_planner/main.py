@@ -14,16 +14,15 @@ def main():
     print("==============================\n")
 
     user_inputs = {
-        "budget": "medium",
-        "period": "summer",
-        "style": "nightlife",
-        "age_group": "18-25",
         "origin": "Milan",
+        "destination": "nord_europe",
+        "budget": "1300",
+        "age_group": "18-25",
         "departure_date": "2026-08-10",
         "return_date": "2026-08-17",
         "checkin_date": "2026-08-10",
         "checkout_date": "2026-08-17",
-        "duration": "7 days",
+        "adults": 2,
     }
 
     print("Starting CrewAI workflow...\n")
