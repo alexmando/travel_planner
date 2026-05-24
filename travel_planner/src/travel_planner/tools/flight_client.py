@@ -5,8 +5,8 @@ import http.client
 
 class KiwiFlightClient:
     def __init__(self):
-        self.base_url = "kiwi-com-cheap-flights.p.rapidapi.com"
-        self.client_secret = os.getenv("KIWI_API_KEY")
+        self.base_url = self.base_url = os.getenv("RAPIDAPI_HOST_KIWI")
+        self.client_secret = os.getenv("RAPIDAPI_KEY")
         self.headers = {
             'x-rapidapi-key': self.client_secret,
             'x-rapidapi-host': self.base_url,
@@ -24,17 +24,18 @@ class KiwiFlightClient:
                        mode: str = "ECONOMY") -> dict:
         conn = http.client.HTTPSConnection(self.base_url)
 
+        formatted_origin = f"City:{origin}" if origin_city else f"Country:{origin}"
+        formatted_destination = f"City:{destination}" if destination_city else f"Country:{destination}"
 
-        formatted_origin = f"City:{origin}" if origin_city else origin
-        formatted_destination = f"City:{destination}" if destination_city else destination
+        requested_adults = adults
 
         query_params = {
             "source": formatted_origin,
             "destination": formatted_destination,
             "outboundDepartureDate": departure_date,
             "inboundDepartureDate": arrival_date,
-            "adults": adults,
-            "cabinClass": mode
+            "adults": 1,
+            "cabinClass": mode,
         }
 
         query_string = urllib.parse.urlencode(query_params)
@@ -46,7 +47,15 @@ class KiwiFlightClient:
         data = res.read()
 
         try:
-            return json.loads(data.decode("utf-8"))
+            response_data = json.loads(data.decode("utf-8"))
+
+            if "price" in response_data and requested_adults > 1:
+                if isinstance(response_data["price"], (int, float)):
+                    response_data["price"] = response_data["price"] * requested_adults
+                    response_data["note_budget"] = f"Prezzo calcolato per {requested_adults} adulti."
+
+            return response_data
+
         except json.JSONDecodeError:
             print("Errore nella decodifica del JSON.")
             return {"raw_response": data.decode("utf-8")}

@@ -1,147 +1,180 @@
 destination_task:
-  description: > 
-    Analyze user preferences and select best destination.
-  
+  description: >
+    Analyze user preferences, select the best destination, and partition the total
+    budget across flights, hotel, and activities.
+
     USER PREFERENCES:
     - Origin: {origin}
-    - Destination: {destination}
-    - Budget: {budget}
+    - Destination area: {destination}
+    - Total budget: {budget} EUR
     - Age group: {age_group}
     - Departure date: {departure_date}
     - Return date: {return_date}
-    - Checkin date: {checkin_date}
-    - Checkout date: {checkout_date}
+    - Check-in date: {checkin_date}
+    - Check-out date: {checkout_date}
     - Adults: {adults}
-  
-    Your job is to:
-      1. Analyze the user profile
-      2. Use the destination search tool
-      3. Select the BEST destination
-      4. Explain clearly WHY this destination is suitable
-      5. Provide a concise destination summary
 
-  IMPORTANT:
-    - The user does NOT initially choose the destination
+    Your job is to:
+      1. Analyze the user profile and preferences
+      2. Use the destination search tool to evaluate options
+      3. Select the BEST destination within the total budget
+      4. Partition the total budget of {budget} EUR across the three categories
+         using this strategy:
+           - Flights budget:    40-50% of {budget} EUR
+           - Hotel budget:      35-45% of {budget} EUR
+           - Activities budget: 10-20% of {budget} EUR
+         Adjust percentages based on destination cost of living and travel style.
+      5. Explicitly state the exact EUR amount assigned to each category
+      6. Explain clearly WHY this destination and budget split are suitable
+
+    IMPORTANT:
     - You must autonomously decide the destination
-    - Consider budget compatibility carefully
+    - The budget split must be realistic for the chosen destination
+    - Always output the three budget figures clearly so other agents can use them
+    - Consider that hotel budget covers the FULL stay ({checkin_date} to {checkout_date})
 
   expected_output: >
-      A complete destination recommendation including:
-      - selected city and country
-      - motivation of the choice
-      - compatibility with user preferences
-      - short destination overview
-  agent: travel manager
+    A complete destination recommendation including:
+    - Selected city and country
+    - Motivation of the choice
+    - Budget allocation breakdown:
+        * Flights budget: [amount] EUR (for {adults} adults, round-trip)
+        * Hotel budget:   [amount] EUR (total for full stay)
+        * Activities budget: [amount] EUR (total for all activities)
+        * Total: {budget} EUR
+    - Short destination overview
+  agent: travel_planner
 
 flight_task:
   description: >
-  
-    Find flight options for the destination selected by the planner agent.
-    
-    You must:
-    1. Analyze the selected destination
-    2. Search available flights
-    3. Prioritize solutions compatible with the user's budget
-    4. Suggest the best available option
-    
+    Find round-trip flight options for the destination selected by the travel planner.
+    You MUST stay within the flight budget allocated in the previous task.
+
     USER DATA:
-      - Departure city: { origin }
-      - Departure date: { departure_date }
-      - Return date: { return_date }
-      - Budget: { budget }
-    
+    - Departure city: {origin}
+    - Departure date: {departure_date}
+    - Return date: {return_date}
+    - Adults: {adults}
+    - Total budget: {budget} EUR
+    - Flight budget: refer to the allocation decided in the destination task
+
+    You must:
+      1. Read the flight budget allocated by the travel planner from the previous task output
+      2. Search available round-trip flights using the flight search tool
+      3. Only recommend options at or below the allocated flight budget
+      4. If no option fits, clearly state it and suggest the cheapest available alternative
+      5. Show the price per person AND the total price for {adults} adults
+
     IMPORTANT:
-      - Use the flight search tool
-      - Focus on realistic travel options
-      - Explain why the suggested flight is appropriate
+    - Use the flight search tool
+    - Never exceed the allocated flight budget
+    - Format city names correctly (e.g., 'milan_it', 'berlin_de')
 
   expected_output: >
     A flight recommendation including:
-    - airline or flight type
-    - estimated price
-    - travel dates
-    - explanation of why the option fits the budget
-
+    - Origin and destination
+    - Airline or flight type
+    - Price per person and total price for {adults} adults
+    - Travel dates (outbound and return)
+    - Whether the option is within the allocated flight budget
+    - Explanation of why the option fits (or the closest alternative if over budget)
   agent: flight_agent
 
 hotel_task:
-    description: >
-        Find accommodation solutions for the destination selected by the planner.
+  description: >
+    Find accommodation for the destination selected by the travel planner.
+    You MUST stay within the hotel budget allocated in the destination task.
 
-        You must:
-        1. Analyze the selected destination
-        2. Search hotels or accommodations
-        3. Match the user's budget and travel style
-        4. Recommend the best accommodation option
+    USER DATA:
+    - Check-in date: {checkin_date}
+    - Check-out date: {checkout_date}
+    - Adults: {adults}
+    - Total budget: {budget} EUR
+    - Hotel budget: refer to the allocation decided in the destination task
 
-        USER DATA:
-        - Check-in date: {checkin_date}
-        - Check-out date: {checkout_date}
-        - Budget: {budget}
+    You must:
+      1. Read the hotel budget allocated by the travel planner from the destination task output
+      2. Calculate the maximum price per night allowed:
+         max_per_night = hotel_budget / number_of_nights
+      3. Search hotels using the hotel search tool
+      4. Only recommend options whose total cost is at or below the hotel budget
+      5. Clearly show: price per night, number of nights, and total cost
 
-        IMPORTANT:
-        - Use the hotel search tool
-        - Prefer coherent solutions with the user profile
+    IMPORTANT:
+    - Use the hotel search tool
+    - Never exceed the allocated hotel budget for the full stay
+    - If no option fits, suggest the closest alternative and flag the budget overrun
 
-    expected_output: >
-        A hotel recommendation including:
-        - hotel/accommodation name
-        - estimated price
-        - accommodation style
-        - explanation of why it fits the user
-
-    agent: hotel_agent
+  expected_output: >
+    A hotel recommendation including:
+    - Hotel name and star rating
+    - Price per night and total cost for the full stay
+    - Number of nights
+    - Whether the total is within the allocated hotel budget
+    - Address or neighbourhood
+    - Explanation of why it fits the user profile
+  agent: hotel_agent
 
 activity_task:
-    description: >
+  description: >
+    Suggest real-time activities and attractions for the selected destination.
+    You MUST stay within the activities budget allocated in the destination task.
 
-        Suggest activities and attractions for the selected destination.
+    USER DATA:
+    - Age group: {age_group}
+    - Adults: {adults}
+    - Total budget: {budget} EUR
+    - Activities budget: refer to the allocation decided in the destination task
 
-        You must:
-        1. Analyze the destination
-        2. Understand the user's travel style
-        3. Recommend suitable activities
+    You must:
+      1. Read the activities budget and the destination **dest_id** resolved by the previous agents.
+      2. Call the `attraction_search` tool passing the resolved **dest_id**, using the travel dates specified in the main itinerary.
+      3. Filter the live results to suggest a mix of free and paid activities suitable for the budget.
+      4. Show the exact cost of each activity (per person and total for {adults} adults).
+      5. Track a running total and ensure it does not exceed the activities budget.
 
-        USER DATA:
-        - Age group: {age_group}
+    IMPORTANT:
+    - You MUST use the `attraction_search` tool to fetch live data. Do not invent attractions.
+    - Include at least one free activity.
+    - Activities must match the user's age group ({age_group}).
+    - Always show the running budget total.
 
-        IMPORTANT:
-        - Use the activity tool
-        - Activities must match the user's interests
-
-    expected_output: >
-        A list of recommended activities including:
-        - attraction/activity name
-        - short explanation
-        - compatibility with user interests
-
-    agent: activity_agent,
-
+  expected_output: >
+    A list of recommended live activities including:
+    - Activity or attraction name
+    - Real cost per person and total for {adults} adults in EUR
+    - Running budget total after each activity
+    - Whether the total is within the allocated activities budget
+    - Short description and compatibility with user interests
+  agent: activity_agent
 
 final_plan_task:
-    description: >
-        Create the FINAL COMPLETE TRAVEL PLAN.
+  description: >
+    Create the FINAL COMPLETE TRAVEL PLAN by combining all outputs from the previous tasks.
+    Verify that the sum of all costs does not exceed the total budget of {budget} EUR.
 
-        You must combine:
-        - selected destination
-        - flight recommendation
-        - hotel recommendation
-        - activities and attractions
+    You must:
+      1. Collect outputs from destination_task, flight_task, hotel_task, activity_task
+      2. Build a complete and well-structured travel plan
+      3. Show a final budget reconciliation table:
+           - Flights total:    [amount] EUR
+           - Hotel total:      [amount] EUR
+           - Activities total: [amount] EUR
+           - GRAND TOTAL:      [amount] EUR  (must be ≤ {budget} EUR)
+      4. If the grand total exceeds {budget} EUR, flag the overage clearly
+         and suggest where to reduce costs
+      5. Structure the final response professionally and clearly
 
-        The final result must be:
-        - clear
-        - well organized
-        - realistic
-        - personalized
-
-        Structure the final response professionally.
-
-    expected_output: >
-        A complete travel plan containing:
-        1. Destination overview
-        2. Flight information
-        3. Hotel information
-        4. Activities and attractions
-        5. Final travel summary
-
-    agent: travel_planner_agent,
+  expected_output: >
+    A complete travel plan containing:
+    1. Destination overview
+    2. Flight information (with total cost)
+    3. Hotel information (with total cost for full stay)
+    4. Activities and attractions (with total cost)
+    5. Budget reconciliation:
+         - Flights:    [X] EUR
+         - Hotel:      [X] EUR
+         - Activities: [X] EUR
+         - TOTAL:      [X] EUR / {budget} EUR budget
+    6. Final travel summary and personalized tips
+  agent: travel_planner

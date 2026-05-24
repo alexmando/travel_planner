@@ -93,12 +93,12 @@ class HotelSearchTool(BaseTool):
             if dest_id is None:
                 return self._mock_result(city_name, check_in, check_out, budget)
 
-            # Step 2: search hotels with the resolved dest_id
             raw_results = client.search_hotels(
                 city_code=dest_id,
                 check_in=check_in,
                 check_out=check_out,
                 adults=adults,
+                rooms=rooms,
             )
 
             if "raw_response" in raw_results:

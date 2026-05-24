@@ -1,11 +1,10 @@
 from dotenv import load_dotenv
-import os
 import litellm
 litellm.disable_cache()
 
 load_dotenv()
 
-from travel_planner.crew import travel_crew
+from travel_planner.crew import TravelPlanner
 
 
 def main():
@@ -15,8 +14,8 @@ def main():
 
     user_inputs = {
         "origin": "Milan",
-        "destination": "nord_europe",
-        "budget": "1300",
+        "destination": "Asia",
+        "budget": "3000",
         "age_group": "18-25",
         "departure_date": "2026-08-10",
         "return_date": "2026-08-17",
@@ -28,7 +27,7 @@ def main():
     print("Starting CrewAI workflow...\n")
 
     try:
-        result = travel_crew.kickoff(inputs=user_inputs)
+        result = TravelPlanner().crew().kickoff(inputs=user_inputs)
 
         print("\n==============================")
         print(" FINAL TRAVEL PLAN ")

@@ -18,31 +18,32 @@ class FlightSearchInput(BaseModel):
 
     origin: str = Field(
         description=(
-            "Flight origin. Can be an IATA code (e.g. 'FCO', 'MXP') "
-            "or a city name (e.g. 'Rome', 'Milan'). "
+            "Flight origin. Can be a country code (e.g. 'GB', 'DE') "
+            "or a city name (e.g. 'rome_it', 'milan_it', 'warsaw_pl'). "
             "Set origin_city=True if passing a city name, "
-            "False if passing an IATA code."
+            "False if passing a country code."
         )
     )
     origin_city: bool = Field(
         default=False,
         description=(
-            "True if 'origin' is a city name (e.g. 'Rome'), "
-            "False if it is an IATA code (e.g. 'FCO'). Default: False."
+            "True if 'origin' is a city name (e.g. 'rome_it', 'milan_it', 'warsaw_pl'), "
+            "False if it is a country code (e.g. 'GB', 'DE'). Default: False."
         )
     )
     destination: str = Field(
         description=(
-            "Flight destination. Can be an IATA code (e.g. 'BCN', 'CDG') "
-            "or a city name (e.g. 'Barcelona', 'Paris'). "
+            "Flight destination. Can be a country code (e.g. 'GB', 'DE') "
+            "or a city name (e.g. 'rome_it', 'milan_it', 'warsaw_pl'). "
             "Set destination_city=True if passing a city name."
+            "False if passing a country code."
         )
     )
     destination_city: bool = Field(
         default=False,
         description=(
-            "True if 'destination' is a city name (e.g. 'Barcelona'), "
-            "False if it is an IATA code (e.g. 'BCN'). Default: False."
+            "True if 'destination' is a city name (e.g. 'rome_it', 'milan_it', 'warsaw_pl'), "
+            "False if it is a country code (e.g. 'GB', 'DE'). Default: False."
         )
     )
     departure_date: str = Field(
@@ -138,100 +139,107 @@ class FlightSearchTool(BaseTool):
     # ──────────────────────────────────────────────────────────
     def _format_output(self, data: dict, origin: str, destination: str) -> str:
         """
-        Converts the raw Kiwi JSON response into structured text
-        for the AI agent.
-
-        NOTE: adapt the field names (e.g. 'itineraries', 'price', etc.)
-        to the actual structure returned by your version of the Kiwi API.
-        You can discover it by printing `raw_results` with an isolated
-        client test.
+        Converts the raw Kiwi JSON response into structured text for the AI agent
+        matching the true schema (itineraries -> priceEur, outbound/inbound -> duration).
         """
-
-        # ── Attempt parsing for common Kiwi RapidAPI structures ──
-        # Case 1: list of itineraries under the "itineraries" key
+        # Estraiamo la lista degli itinerari dal JSON reale
         itineraries = data.get("itineraries", [])
 
-        # Case 2: list of offers under the "data" key
-        if not itineraries:
-            itineraries = data.get("data", [])
-
-        # Case 3: flat response with no recognised list
         if not itineraries:
             return (
-                "Search completed but no flights found "
-                f"for {origin} → {destination} with the given parameters.\n"
-                f"Raw response (first 500 characters):\n{str(data)[:500]}"
+                f"Search completed but no flights found "
+                f"for {origin} -> {destination} with the given parameters.\n"
+                f"Raw response (first 300 characters):\n{str(data)[:300]}"
             )
 
         lines = [
-            f"✈️  Round-trip flights found: {origin} ⇄ {destination}",
+            f"✈️  Round-trip flights found: {origin} -> {destination}",
             f"   Total results: {len(itineraries)}\n",
         ]
 
-        for i, trip in enumerate(itineraries[:5], 1):  # show max 5 results
+        for i, trip in enumerate(itineraries[:5], 1):  # Mostra al massimo 5 risultati
 
-            # ── Price ──
-            price_info = trip.get("price", {})
-            if isinstance(price_info, dict):
-                price = price_info.get("formatted") or price_info.get("amount", "N/A")
-                currency = price_info.get("currency", "EUR")
-            else:
-                price = str(price_info)
-                currency = "EUR"
+            # 1. Estrazione sicura del prezzo in EURO (usiamo priceEur dal tuo JSON)
+            price_eur_info = trip.get("priceEur", {})
+            price = price_eur_info.get("amount", "N/A")
 
-            # ── Outbound / inbound legs ──
-            legs = trip.get("legs", [])
-            outbound = legs[0] if len(legs) > 0 else {}
-            inbound  = legs[1] if len(legs) > 1 else {}
+            # Arrotonda il prezzo per renderlo più leggibile se è una stringa numerica
+            try:
+                price = f"{float(price):.2f}"
+            except (ValueError, TypeError):
+                pass
+            currency = "EUR"
 
-            lines.append(f"{'─' * 50}")
+            # 2. Estrazione tratte (Outbound / Inbound)
+            outbound = trip.get("outbound", {})
+            inbound = trip.get("inbound", {})
+
+            lines.append(f"{'-' * 50}")
             lines.append(f"Option {i}")
-            lines.append(f"  💶 Total price   : {price} {currency}")
+            lines.append(f"  💰 Total price   : {price} {currency}")
 
+            # --- GESTIONE ANDATA (Outbound) ---
             if outbound:
-                lines.append(
-                    f"  🛫 Outbound      : {outbound.get('departure', 'N/A')} → "
-                    f"{outbound.get('arrival', 'N/A')}"
-                )
-                lines.append(
-                    f"     Duration      : {self._format_duration(outbound.get('durationInMinutes'))}"
-                )
-                lines.append(
-                    f"     Stops         : {outbound.get('stopCount', 0)}"
-                )
+                # Estraiamo i codici aeroporto e l'orario dai segmenti reali
+                segments = outbound.get("sectorSegments", [])
+                if segments and isinstance(segments, list):
+                    seg_data = segments[0].get("segment", {})
+                    src_iata = seg_data.get("source", {}).get("station", {}).get("code", "N/A")
+                    dst_iata = seg_data.get("destination", {}).get("station", {}).get("code", "N/A")
+                    time_str = seg_data.get("source", {}).get("localTime", "N/A")
+                    carrier = seg_data.get("carrier", {}).get("name", "Unknown Airline")
 
+                    # Puliamo la data per renderla leggibile (es. da 2026-08-25T22:15:00 a 2026-08-25 22:15)
+                    time_clean = time_str.replace("T", " ")[:16] if time_str else "N/A"
+
+                    lines.append(f"  🛫 Outbound ({carrier}): {src_iata} -> {dst_iata} | Departs: {time_clean}")
+
+                # La durata nel tuo JSON è in SECONDI sotto la chiave "duration"
+                duration_seconds = outbound.get("duration")
+                lines.append(f"     Duration      : {self._format_duration(duration_seconds)}")
+
+            # --- GESTIONE RITORNO (Inbound) ---
             if inbound:
-                lines.append(
-                    f"  🛬 Return        : {inbound.get('departure', 'N/A')} → "
-                    f"{inbound.get('arrival', 'N/A')}"
-                )
-                lines.append(
-                    f"     Duration      : {self._format_duration(inbound.get('durationInMinutes'))}"
-                )
-                lines.append(
-                    f"     Stops         : {inbound.get('stopCount', 0)}"
-                )
+                segments = inbound.get("sectorSegments", [])
+                if segments and isinstance(segments, list):
+                    seg_data = segments[0].get("segment", {})
+                    src_iata = seg_data.get("source", {}).get("station", {}).get("code", "N/A")
+                    dst_iata = seg_data.get("destination", {}).get("station", {}).get("code", "N/A")
+                    time_str = seg_data.get("source", {}).get("localTime", "N/A")
+                    carrier = seg_data.get("carrier", {}).get("name", "Unknown Airline")
 
-            # ── Booking link (if present) ──
-            link = trip.get("deepLink") or trip.get("url") or trip.get("bookingUrl")
-            if link:
-                lines.append(f"  🔗 Book at       : {link}")
+                    time_clean = time_str.replace("T", " ")[:16] if time_str else "N/A"
 
-        lines.append(f"{'─' * 50}")
-        lines.append(
-            "Note: prices are indicative. Please verify up-to-date fares "
-            "directly on the booking link before purchasing."
-        )
+                    lines.append(f"  🛬 Return ({carrier}): {src_iata} -> {dst_iata} | Departs: {time_clean}")
 
+                duration_seconds = inbound.get("duration")
+                lines.append(f"     Duration      : {self._format_duration(duration_seconds)}")
+
+            # 3. Estrazione link di prenotazione reale
+            # Nel tuo JSON è annidato dentro edges -> node -> bookingUrl
+            booking_options = trip.get("bookingOptions", {})
+            edges = booking_options.get("edges", [])
+            if edges and isinstance(edges, list):
+                link = edges[0].get("node", {}).get("bookingUrl")
+                if link:
+                    # Se il link è relativo, aggiungiamo il dominio di Kiwi
+                    full_link = f"https://www.kiwi.com{link}" if link.startswith("/") else link
+                    lines.append(f"  🔗 Book at       : {full_link}")
+
+        lines.append(f"{'-' * 50}")
+        lines.append("Note: Prices are retrieved in real-time from the Kiwi API via RapidAPI.")
         return "\n".join(lines)
 
     @staticmethod
-    def _format_duration(minutes) -> str:
-        """Converts minutes to a readable format, e.g. 125 → '2h 05min'."""
-        if minutes is None:
+    def _format_duration(seconds) -> str:
+        """Converts seconds from the true JSON into a readable format, e.g. 7500 -> '2h 05min'."""
+        if seconds is None or str(seconds).lower() == 'none':
             return "N/A"
         try:
-            m = int(minutes)
-            return f"{m // 60}h {m % 60:02d}min"
+            # Trasformiamo i secondi totali in minuti totali
+            total_minutes = int(float(seconds)) // 60
+            h = total_minutes // 60
+            m = total_minutes % 60
+            return f"{h}h {m:02d}min"
         except (ValueError, TypeError):
-            return str(minutes)
+            return f"{seconds} sec"
