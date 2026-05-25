@@ -14,7 +14,7 @@ def main():
 
     user_inputs = {
         "origin": "Milan",
-        "destination": "Asia",
+        "destination": "Europe",
         "budget": "3000",
         "age_group": "18-25",
         "departure_date": "2026-08-10",

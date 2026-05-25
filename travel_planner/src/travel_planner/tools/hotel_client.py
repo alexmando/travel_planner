@@ -45,6 +45,7 @@ class BookingHotelClient:
         check_out: str,
         adults: int = 2,
         rooms: int = 1,
+        order_by: str = "price",
         currency: str = "EUR",
     ) -> dict:
         conn = http.client.HTTPSConnection(self.base_url)
@@ -56,9 +57,9 @@ class BookingHotelClient:
             "checkout_date":      check_out,
             "adults_number":      adults,
             "room_number":        rooms,
+            "order_by":           order_by,
             "locale":             "en-gb",
             "filter_by_currency": currency,
-            "order_by":           "price",
             "units":              "metric",
             "include_adjacency":  "true",
 

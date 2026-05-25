@@ -3,79 +3,34 @@ from __future__ import annotations
 import http.client
 import json
 from datetime import date
-from typing import Any, Type
+from typing import Type
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .hotel_client import BookingHotelClient
 
 
-# ══════════════════════════════════════════════════════════════
-# 1. INPUT SCHEMA
-# ══════════════════════════════════════════════════════════════
 class HotelSearchInput(BaseModel):
-    """Input schema for hotel search via Booking.com RapidAPI."""
+    model_config = ConfigDict(extra="ignore")
 
-    city_name: str = Field(
-        ...,
-        description=(
-            "City name to search hotels in, in English. "
-            "Examples: 'Barcelona', 'Rome', 'Paris', 'Amsterdam'. "
-            "Used to automatically resolve the Booking.com dest_id."
-        )
-    )
-    check_in: str = Field(
-        ...,
-        description="Check-in date in YYYY-MM-DD format. Example: '2025-08-10'."
-    )
-    check_out: str = Field(
-        ...,
-        description="Check-out date in YYYY-MM-DD format. Example: '2025-08-15'."
-    )
-    adults: int = Field(
-        default=2,
-        ge=1,
-        le=9,
-        description="Number of adult guests. Default: 2."
-    )
-    rooms: int = Field(
-        default=1,
-        ge=1,
-        le=9,
-        description="Number of rooms required. Default: 1."
-    )
-    budget: str = Field(
-        default="medium",
-        description=(
-            "Preferred budget level used to label the search context. "
-            "Accepted values: 'low', 'medium', 'high'. Default: 'medium'."
-        )
-    )
+    city_name: str = Field(..., description="City in English, e.g. 'Copenhagen', 'Rome'.")
+    check_in: str = Field(..., description="Check-in date YYYY-MM-DD.")
+    check_out: str = Field(..., description="Check-out date YYYY-MM-DD.")
+    adults: int = Field(default=2, ge=1, le=9, description="Number of adult guests.")
+    rooms: int = Field(default=1, ge=1, le=9, description="Number of rooms.")
+    budget: str = Field(default="medium", description="Budget level: low, medium, high.")
 
 
-# ══════════════════════════════════════════════════════════════
-# 2. TOOL CLASS
-# ══════════════════════════════════════════════════════════════
 class HotelSearchTool(BaseTool):
     name: str = "hotel_search"
     description: str = (
-        "Search for available hotels in a city using the Booking.com RapidAPI. "
-        "Use this when you need to find accommodation for a stay, "
-        "specifying the city, check-in and check-out dates, "
-        "number of adult guests, number of rooms, and budget level. "
-        "The tool automatically resolves the Booking.com destination code "
-        "from the city name. "
-        "Returns hotel name, star rating, price, review score, and address. "
-        "Falls back to simulated hotel options if the API is unavailable. "
-        "Example: hotels in Barcelona from 2025-08-10 to 2025-08-15, "
-        "2 adults, 1 room, medium budget."
+        "Search hotels via Booking.com. Runs 3 searches (by price, popularity, review score), "
+        "cross-references results, and returns the best pick + top 3 per criteria. "
+        "Pass city name in English, check-in/out as YYYY-MM-DD."
     )
     args_schema: Type[BaseModel] = HotelSearchInput
 
-    # ──────────────────────────────────────────────────────────
-    # 3. _run METHOD
-    # ──────────────────────────────────────────────────────────
     def _run(
         self,
         city_name: str,
@@ -88,188 +43,154 @@ class HotelSearchTool(BaseTool):
         try:
             client = BookingHotelClient(token=None, base_url=None)
 
-            # Step 1: resolve city name → Booking.com dest_id
             dest_id = self._resolve_dest_id(client, city_name)
             if dest_id is None:
                 return self._mock_result(city_name, check_in, check_out, budget)
 
-            raw_results = client.search_hotels(
-                city_code=dest_id,
-                check_in=check_in,
-                check_out=check_out,
-                adults=adults,
-                rooms=rooms,
-            )
-
-            if "raw_response" in raw_results:
-                return self._mock_result(city_name, check_in, check_out, budget)
-
-            if "error" in raw_results:
-                return (
-                    self._mock_result(city_name, check_in, check_out, budget)
-                    + f"\n\nAPI error: {raw_results['error']}"
+            # 3 searches with different sort criteria
+            results_by_sort: dict[str, list[dict]] = {}
+            for sort in ("price", "popularity", "review_score"):
+                raw = client.search_hotels(
+                    city_code=dest_id,
+                    check_in=check_in,
+                    check_out=check_out,
+                    adults=adults,
+                    rooms=rooms,
+                    order_by=sort,
                 )
+                if "raw_response" in raw or "error" in raw:
+                    results_by_sort[sort] = []
+                else:
+                    hotels = raw.get("result") or raw.get("data") or raw.get("hotels") or []
+                    results_by_sort[sort] = hotels[:5]
 
-            return self._format_output(
-                raw_results, city_name, check_in, check_out, adults, rooms, budget
-            )
+            best = self._cross_reference(results_by_sort)
+            return self._format_output(results_by_sort, best, city_name, check_in, check_out, adults, budget)
 
         except Exception as exc:
-            # crewAI tools must never propagate exceptions.
-            return (
-                self._mock_result(city_name, check_in, check_out, budget)
-                + f"\n\nAPI error: {exc}"
-            )
+            return self._mock_result(city_name, check_in, check_out, budget) + f"\nError: {exc}"
 
-    # ──────────────────────────────────────────────────────────
-    # Helper: resolve city name → dest_id
-    # ──────────────────────────────────────────────────────────
+    # ── Helpers ────────────────────────────────────────────────
+
     def _resolve_dest_id(self, client: BookingHotelClient, city_name: str) -> str | None:
-        """
-        Calls the /v1/hotels/locations endpoint and returns the dest_id
-        of the first result. The original client method only prints the
-        value without returning it, so we replicate the HTTP call here
-        and handle the response properly.
-        """
         try:
             conn = http.client.HTTPSConnection(client.base_url)
-            conn.request(
-                "GET",
-                f"/v1/hotels/locations?locale=en-gb&name={city_name}",
-                headers=client.headers,
-            )
-            res = conn.getresponse()
-            locations = json.loads(res.read().decode("utf-8"))
+            conn.request("GET", f"/v1/hotels/locations?locale=en-gb&name={city_name}", headers=client.headers)
+            locations = json.loads(conn.getresponse().read().decode("utf-8"))
+            return str(locations[0].get("dest_id")) if locations else None
         except Exception:
             return None
 
-        if not locations:
+    def _cross_reference(self, results_by_sort: dict[str, list[dict]]) -> dict | None:
+        scores: dict[str, float] = {}
+        index: dict[str, dict] = {}
+        weights = {"price": 1.0, "popularity": 2.0, "review_score": 2.0}
+
+        for sort, hotels in results_by_sort.items():
+            for h in hotels:
+                hid = str(h.get("hotel_id") or h.get("hotel_name", "?"))
+                if hid not in scores:
+                    scores[hid] = 0.0
+                    index[hid] = h
+                scores[hid] += weights.get(sort, 1.0)
+                try:
+                    scores[hid] += float(h.get("review_score") or 0) * 0.1
+                except (ValueError, TypeError):
+                    pass
+
+        if not scores:
             return None
 
-        return str(locations[0].get("dest_id"))
+        # Bonus for appearing in all 3 lists
+        sets = [
+            {str(h.get("hotel_id") or h.get("hotel_name", "?")) for h in v}
+            for v in results_by_sort.values() if v
+        ]
+        if len(sets) == 3:
+            for hid in sets[0] & sets[1] & sets[2]:
+                scores[hid] += 3.0
 
-    # ──────────────────────────────────────────────────────────
-    # Helper: mock result used as fallback
-    # ──────────────────────────────────────────────────────────
-    def _mock_result(
-        self,
-        city_name: str,
-        check_in: str,
-        check_out: str,
-        budget: str,
-    ) -> str:
-        """
-        Returns simulated hotel options when the API is unavailable
-        or the city could not be resolved.
-        """
-        return "\n".join([
-            "Booking.com API not available or city not found; using simulated hotel options.",
-            f"Destination : {city_name}",
-            f"Check-in    : {check_in}",
-            f"Check-out   : {check_out}",
-            f"Budget      : {budget}",
-            "─" * 50,
-            "- Budget option  : €70/night  | central location",
-            "- Mid-range hotel: €140/night | breakfast included",
-            "- Comfort hotel  : €220/night | near main attractions",
-        ])
+        best_id = max(scores, key=lambda k: scores[k])
+        best = index[best_id].copy()
+        best["_score"] = round(scores[best_id], 2)
+        best["_in_lists"] = [
+            s for s, hotels in results_by_sort.items()
+            if any(str(h.get("hotel_id") or h.get("hotel_name", "?")) == best_id for h in hotels)
+        ]
+        return best
 
-    # ──────────────────────────────────────────────────────────
-    # Helper: format API response as readable text
-    # ──────────────────────────────────────────────────────────
+    def _hotel_line(self, h: dict) -> str:
+        """Compact one-line summary of a hotel."""
+        name = h.get("hotel_name") or h.get("name", "N/A")
+        price = (
+            h.get("min_total_price")
+            or h.get("composite_price_breakdown", {}).get("gross_amount", {}).get("value")
+            or "N/A"
+        )
+        currency = h.get("currencycode") or "DKK"
+        review = h.get("review_score", "?")
+        dist = h.get("distance_to_cc_formatted") or h.get("distance", "?")
+        return f"{name} | {price} {currency} total | ⭐{review}/10 | {dist} from centre"
+
     def _format_output(
         self,
-        data: dict,
+        results_by_sort: dict[str, list[dict]],
+        best: dict | None,
         city_name: str,
         check_in: str,
         check_out: str,
         adults: int,
-        rooms: int,
         budget: str,
     ) -> str:
-        """
-        Converts the raw Booking.com JSON response into structured text
-        for the AI agent.
-
-        NOTE: adapt field names to the actual structure returned by your
-        API version. Print `raw_results` in an isolated client test to
-        inspect the real JSON shape.
-        """
-        # Calculate number of nights
         try:
             nights = (date.fromisoformat(check_out) - date.fromisoformat(check_in)).days
         except ValueError:
             nights = "?"
 
-        # Booking.com RapidAPI v1 returns results under "result"
-        hotels = (
-            data.get("result")
-            or data.get("data")
-            or data.get("hotels")
-            or []
-        )
+        lines = [f"🏨 Hotels in {city_name} | {check_in}→{check_out} ({nights}n) | {adults} adults | {budget}\n"]
 
-        if not hotels:
-            return (
-                self._mock_result(city_name, check_in, check_out, budget)
-                + f"\n\nRaw response (first 500 chars):\n{str(data)[:500]}"
-            )
+        labels = {"price": "📉 By price", "popularity": "🔥 By popularity", "review_score": "⭐ By review"}
+        for sort, hotels in results_by_sort.items():
+            lines.append(f"{labels.get(sort, sort)}:")
+            if not hotels:
+                lines.append("  No results.")
+            else:
+                for i, h in enumerate(hotels[:3], 1):
+                    lines.append(f"  {i}. {self._hotel_line(h)}")
+            lines.append("")
 
-        lines = [
-            f"🏨  Hotels available in {city_name}",
-            f"   Check-in : {check_in}  →  Check-out : {check_out}  ({nights} nights)",
-            f"   Adults   : {adults}  |  Rooms: {rooms}  |  Budget: {budget}",
-            f"   Results  : {len(hotels)} found\n",
-        ]
-
-        for i, hotel in enumerate(hotels[:5], 1):  # show max 5 results
-
-            # ── Name ──
-            name = hotel.get("hotel_name") or hotel.get("name", "N/A")
-
-            # ── Review score ──
-            review_score = hotel.get("review_score") or hotel.get("rating", "N/A")
-            review_label = hotel.get("review_score_word", "")
-            review_count = hotel.get("review_nr") or hotel.get("review_count", 0)
-
-            # ── Price ──
-            price = (
-                hotel.get("min_total_price")
-                or hotel.get("composite_price_breakdown", {})
-                    .get("gross_amount", {}).get("value")
-                or hotel.get("price_breakdown", {}).get("gross_price")
+        lines.append("── BEST PICK (cross-referenced) ──")
+        if not best:
+            lines.append("Could not determine best pick.")
+        else:
+            name     = best.get("hotel_name") or best.get("name", "N/A")
+            address  = best.get("address") or best.get("address_trans", "N/A")
+            price    = (
+                best.get("min_total_price")
+                or best.get("composite_price_breakdown", {}).get("gross_amount", {}).get("value")
                 or "N/A"
             )
-            currency = hotel.get("currencycode") or hotel.get("currency", "EUR")
+            currency = best.get("currencycode") or "DKK"
+            review   = best.get("review_score", "N/A")
+            review_w = best.get("review_score_word", "")
+            reviews  = best.get("review_nr") or 0
+            stars_n  = best.get("class") or best.get("stars")
+            stars    = f"{'⭐'*int(stars_n)}" if stars_n else "N/A"
+            dist     = best.get("distance_to_cc_formatted") or "N/A"
+            in_lists = ", ".join(best.get("_in_lists", []))
 
-            # ── Address & distance ──
-            address  = hotel.get("address") or hotel.get("address_trans", "N/A")
-            distance = hotel.get("distance_to_cc_formatted") or hotel.get("distance", "")
+            lines += [
+                f"  {name} | {stars} | {address} | {dist} from centre",
+                f"  {review}/10 {review_w} ({reviews} reviews)",
+                f"  {price} {currency} total ({nights} nights)",
+                f"  Ranked in: [{in_lists}] — score: {best.get('_score', '?')}",
+            ]
 
-            # ── Star rating ──
-            stars_num = hotel.get("class") or hotel.get("stars")
-            stars = "⭐" * int(stars_num) if stars_num else "N/A"
-
-            lines.append(f"{'─' * 50}")
-            lines.append(f"Hotel {i} — {name}")
-            lines.append(f"  Stars         : {stars}")
-            lines.append(f"  Address       : {address}")
-            if distance:
-                lines.append(f"  From centre   : {distance}")
-            if review_score != "N/A":
-                lines.append(
-                    f"  Review score  : {review_score}/10 — {review_label} "
-                    f"({review_count} reviews)"
-                )
-            lines.append(
-                f"  Total price   : {price} {currency} "
-                f"({nights} nights)" if nights != "?" else f"  Total price   : {price} {currency}"
-            )
-
-        lines.append(f"{'─' * 50}")
-        lines.append(
-            "Note: prices are indicative. Verify availability and current "
-            "conditions on Booking.com before booking."
-        )
-
+        lines.append("\nPrices indicative. Verify on Booking.com before booking.")
         return "\n".join(lines)
+
+    def _mock_result(self, city_name: str, check_in: str, check_out: str, budget: str) -> str:
+        return (
+            f"Booking.com unavailable for {city_name} ({check_in}→{check_out}, {budget}).\n"
+            "Simulated options: €70/night budget | €140/night mid-range | €220/night comfort."
+        )

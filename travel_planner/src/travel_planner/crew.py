@@ -30,6 +30,7 @@ class TravelPlanner:
         model=os.getenv("MODEL"),
         api_key=os.getenv("GROQ_API_KEY"),
         max_retries=3,
+        max_tokens=1000,
     )
 
     @agent

@@ -16,16 +16,14 @@ destination_task:
 
     Your job is to:
       1. Analyze the user profile and preferences
-      2. Use the destination search tool to evaluate options
-      3. Select the BEST destination within the total budget
-      4. Partition the total budget of {budget} EUR across the three categories
-         using this strategy:
+      2. Select the BEST destination within the total budget
+      3. Partition the total budget of {budget} EUR across the three categories:
            - Flights budget:    40-50% of {budget} EUR
            - Hotel budget:      35-45% of {budget} EUR
            - Activities budget: 10-20% of {budget} EUR
          Adjust percentages based on destination cost of living and travel style.
-      5. Explicitly state the exact EUR amount assigned to each category
-      6. Explain clearly WHY this destination and budget split are suitable
+      4. Explicitly state the exact EUR amount assigned to each category
+      5. Explain clearly WHY this destination and budget split are suitable
 
     IMPORTANT:
     - You must autonomously decide the destination
@@ -38,17 +36,18 @@ destination_task:
     - Selected city and country
     - Motivation of the choice
     - Budget allocation breakdown:
-        * Flights budget: [amount] EUR (for {adults} adults, round-trip)
-        * Hotel budget:   [amount] EUR (total for full stay)
+        * Flights budget:    [amount] EUR (for {adults} adults, round-trip)
+        * Hotel budget:      [amount] EUR (total for full stay)
         * Activities budget: [amount] EUR (total for all activities)
         * Total: {budget} EUR
     - Short destination overview
   agent: travel_planner
 
+
 flight_task:
   description: >
     Find round-trip flight options for the destination selected by the travel planner.
-    You MUST stay within the flight budget allocated in the previous task.
+    You MUST stay within the flight budget allocated in the destination task.
 
     USER DATA:
     - Departure city: {origin}
@@ -56,54 +55,107 @@ flight_task:
     - Return date: {return_date}
     - Adults: {adults}
     - Total budget: {budget} EUR
-    - Flight budget: refer to the allocation decided in the destination task
+    - Flight budget: read from the destination task output
 
-    You must:
-      1. Read the flight budget allocated by the travel planner from the previous task output
-      2. Search available round-trip flights using the flight search tool
-      3. Only recommend options at or below the allocated flight budget
-      4. If no option fits, clearly state it and suggest the cheapest available alternative
-      5. Show the price per person AND the total price for {adults} adults
+    STEP-BY-STEP INSTRUCTIONS:
 
-    IMPORTANT:
-    - Use the flight search tool
-    - Never exceed the allocated flight budget
-    - Format city names correctly (e.g., 'milan_it', 'berlin_de')
+    1. Read the flight budget and destination from the destination task output.
+
+    2. Format the city names correctly before calling the tool:
+       - Use lowercase with country code: 'city_countrycode'
+       - Europe examples : milan_it | rome_it | copenhagen_dk | berlin_de |
+                           amsterdam_nl | paris_fr | stockholm_se | oslo_no |
+                           warsaw_pl | vienna_at | lisbon_pt | barcelona_es
+       - North America   : new-york_us | los-angeles_us | miami_us |
+                           toronto_ca | montreal_ca | cancun_mx
+       - Note: multi-word cities use a hyphen: 'new-york_us', 'los-angeles_us'
+
+    3. Call the flight_search tool with the formatted city names.
+
+    4. If the tool returns "No flights found":
+       a. Try once more with an alternative format of the same city
+          (e.g. if 'new_york_us' failed, retry with 'new-york_us').
+       b. If still no results after the retry, output EXACTLY this line
+          as the first line of your response:
+          DESTINATION_CHANGE_REQUIRED: no flights found for [destination]
+          Then list 2 alternative destinations in the same geographic area
+          that are more likely to have direct or cheap connections from {origin}.
+          Do NOT invent flight data.
+
+    5. If flights are found:
+       a. Select the best option within the flight budget.
+       b. Calculate: price_per_person = tool_price / {adults}
+                     total_price = tool_price (already for all adults if adults>1,
+                     otherwise multiply by {adults}).
+       c. Flag clearly if the option exceeds the budget.
+
+    HARD RULES:
+    - Never invent or estimate flight prices -- only use real tool output.
+    - Never exceed the flight budget without explicitly flagging it.
+    - Always show both price per person AND total for {adults} adults.
 
   expected_output: >
-    A flight recommendation including:
-    - Origin and destination
-    - Airline or flight type
-    - Price per person and total price for {adults} adults
-    - Travel dates (outbound and return)
-    - Whether the option is within the allocated flight budget
-    - Explanation of why the option fits (or the closest alternative if over budget)
+    ONE of the following two formats:
+
+    FORMAT A -- Flights found:
+      Origin      : [city_code]
+      Destination : [city_code]
+      Airline     : [name]
+      Outbound    : [date] [time] [IATA src] to [IATA dst] ([duration])
+      Return      : [date] [time] [IATA src] to [IATA dst] ([duration])
+      Price/person: [X] EUR
+      Total price : [X] EUR for {adults} adults
+      Budget fit  : YES / NO -- [brief explanation]
+      Book at     : [truncated link]
+
+    FORMAT B -- No flights found (output this ONLY if tool returned no results after retry):
+      DESTINATION_CHANGE_REQUIRED: no flights found for [destination]
+      Alternative 1: [city, country] -- reason why it has better connections
+      Alternative 2: [city, country] -- reason why it has better connections
+
   agent: flight_agent
+
 
 hotel_task:
   description: >
     Find accommodation for the destination selected by the travel planner.
     You MUST stay within the hotel budget allocated in the destination task.
 
+    HOW THE HOTEL SEARCH TOOL WORKS -- READ CAREFULLY:
+    The hotel_search tool handles city resolution INTERNALLY in two automatic steps:
+      Step 1 (automatic): calls Booking.com locations API with the city name
+                          to obtain the internal dest_id code.
+      Step 2 (automatic): uses that dest_id to search for available hotels,
+                          running 3 searches sorted by price, popularity,
+                          and review_score, then cross-references the results.
+    YOU only need to pass the city name in English. Do NOT try to find or
+    pass the dest_id yourself -- the tool does it automatically.
+
     USER DATA:
     - Check-in date: {checkin_date}
     - Check-out date: {checkout_date}
     - Adults: {adults}
     - Total budget: {budget} EUR
-    - Hotel budget: refer to the allocation decided in the destination task
+    - Hotel budget: read from the destination task output
 
-    You must:
-      1. Read the hotel budget allocated by the travel planner from the destination task output
-      2. Calculate the maximum price per night allowed:
-         max_per_night = hotel_budget / number_of_nights
-      3. Search hotels using the hotel search tool
-      4. Only recommend options whose total cost is at or below the hotel budget
-      5. Clearly show: price per night, number of nights, and total cost
+    STEP-BY-STEP INSTRUCTIONS:
+      1. Read the hotel budget and city name from the destination task output.
+      2. Calculate max price per night: hotel_budget / number_of_nights.
+      3. Call hotel_search passing:
+           city_name  = city name in English (e.g. 'Copenhagen', 'Vancouver')
+           check_in   = {checkin_date}
+           check_out  = {checkout_date}
+           adults     = {adults}
+           rooms      = 1
+           budget     = 'low' / 'medium' / 'high' based on the hotel budget
+      4. The tool returns a BEST PICK recommendation already cross-referenced
+         across price, popularity, and review score. Use it as your recommendation.
+      5. Verify the total price is within the hotel budget.
+         If it exceeds the budget, flag the overrun explicitly.
 
     IMPORTANT:
-    - Use the hotel search tool
-    - Never exceed the allocated hotel budget for the full stay
-    - If no option fits, suggest the closest alternative and flag the budget overrun
+    - Pass city_name in English only (e.g. 'Copenhagen', not 'copenhagen_dk').
+    - Never exceed the allocated hotel budget without flagging it.
 
   expected_output: >
     A hotel recommendation including:
@@ -112,46 +164,82 @@ hotel_task:
     - Number of nights
     - Whether the total is within the allocated hotel budget
     - Address or neighbourhood
-    - Explanation of why it fits the user profile
+    - Review score and number of reviews
+    - Why it was selected (based on cross-reference across price, popularity, reviews)
   agent: hotel_agent
+
 
 activity_task:
   description: >
-    Suggest real-time activities and attractions for the selected destination.
-    You MUST stay within the activities budget allocated in the destination task.
+    Search for real attractions at the selected destination and suggest the best ones
+    within the activities budget allocated in the destination task.
+
+    HOW THE ATTRACTION SEARCH TOOL WORKS -- READ CAREFULLY:
+    The attraction_search tool requires a Booking.com dest_id as input, NOT a city name.
+    This dest_id is the same internal code used by the hotel search.
+
+    TWO-STEP PROCESS YOU MUST FOLLOW:
+
+      STEP 1 -- Get the dest_id:
+        Look for the dest_id in the hotel task output. The hotel_search tool
+        resolves it internally and may print it. If it is visible, use it.
+
+        If the dest_id is NOT in the context, use this reference table:
+          Copenhagen  -> -2745636    Stockholm   -> -2668537
+          Amsterdam   -> -2140479    Paris       -> -1456928
+          Berlin      -> -1746443    Rome        -> -126693
+          Barcelona   -> -372490     Lisbon      -> -2167973
+          Vienna      -> -1995499    Oslo        -> -2674061
+          Prague      -> -553173     Budapest    -> -850553
+          London      -> -2601889    Dublin      -> -1506909
+          Vancouver   -> 1458        Toronto     -> 1268
+          New York    -> 20088325    Miami       -> 20014181
+          Los Angeles -> 20014183    Montreal    -> 20065951
+          Cancun      -> 20034348
+
+      STEP 2 -- Call attraction_search:
+        Pass exactly these parameters:
+          dest_id    = [dest_id from step 1]
+          start_date = {departure_date}
+          end_date   = {return_date}
+          currency   = 'EUR'
+
+    AFTER GETTING RESULTS:
+      3. Suggest a mix of free and paid activities within the activities budget.
+      4. Show cost per person AND total for {adults} adults.
+      5. Track a running total -- do not exceed the activities budget.
+      6. Include at least one free activity.
+      7. If the API returns no structured data, use the simulated fallback
+         from the tool output and label each activity as ESTIMATED.
 
     USER DATA:
     - Age group: {age_group}
     - Adults: {adults}
-    - Total budget: {budget} EUR
-    - Activities budget: refer to the allocation decided in the destination task
-
-    You must:
-      1. Read the activities budget and the destination **dest_id** resolved by the previous agents.
-      2. Call the `attraction_search` tool passing the resolved **dest_id**, using the travel dates specified in the main itinerary.
-      3. Filter the live results to suggest a mix of free and paid activities suitable for the budget.
-      4. Show the exact cost of each activity (per person and total for {adults} adults).
-      5. Track a running total and ensure it does not exceed the activities budget.
+    - Activities budget: read from the destination task output
+    - Travel dates: {departure_date} to {return_date}
 
     IMPORTANT:
-    - You MUST use the `attraction_search` tool to fetch live data. Do not invent attractions.
-    - Include at least one free activity.
-    - Activities must match the user's age group ({age_group}).
-    - Always show the running budget total.
+    - Always call attraction_search first -- do not invent activities.
+    - Activities must suit the user age group ({age_group}).
 
   expected_output: >
-    A list of recommended live activities including:
+    A list of recommended activities including:
     - Activity or attraction name
-    - Real cost per person and total for {adults} adults in EUR
+    - Cost per person and total for {adults} adults
     - Running budget total after each activity
     - Whether the total is within the allocated activities budget
-    - Short description and compatibility with user interests
+    - Short description and why it suits the user profile
+    - Label each item: LIVE DATA or ESTIMATED
   agent: activity_agent
+
 
 final_plan_task:
   description: >
     Create the FINAL COMPLETE TRAVEL PLAN by combining all outputs from the previous tasks.
     Verify that the sum of all costs does not exceed the total budget of {budget} EUR.
+
+    NOTE: if the flight task output contains "DESTINATION_CHANGE_REQUIRED",
+    use the alternative destination chosen by the subsequent agents for the final plan.
 
     You must:
       1. Collect outputs from destination_task, flight_task, hotel_task, activity_task
@@ -160,17 +248,17 @@ final_plan_task:
            - Flights total:    [amount] EUR
            - Hotel total:      [amount] EUR
            - Activities total: [amount] EUR
-           - GRAND TOTAL:      [amount] EUR  (must be ≤ {budget} EUR)
+           - GRAND TOTAL:      [amount] EUR  (must be <= {budget} EUR)
       4. If the grand total exceeds {budget} EUR, flag the overage clearly
          and suggest where to reduce costs
-      5. Structure the final response professionally and clearly
+      5. Note any data limitations (e.g. flight prices not confirmed, activities estimated)
 
   expected_output: >
     A complete travel plan containing:
-    1. Destination overview
-    2. Flight information (with total cost)
-    3. Hotel information (with total cost for full stay)
-    4. Activities and attractions (with total cost)
+    1. Destination overview (note if changed from original selection)
+    2. Flight information (real price if available, or budget estimate with note)
+    3. Hotel information (name, stars, price/night, total stay cost, review score)
+    4. Activities and attractions (list with costs, LIVE or ESTIMATED labels)
     5. Budget reconciliation:
          - Flights:    [X] EUR
          - Hotel:      [X] EUR
