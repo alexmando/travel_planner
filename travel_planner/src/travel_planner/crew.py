@@ -62,7 +62,7 @@ class TravelPlanner:
     @agent
     def activity_agent(self) -> Agent:
         return Agent(config=self.agents_config["activity_agent"],
-            verbose=False,
+            verbose=True,
             max_iter=3,
             allow_delegation=False,
             rate_limit=3,

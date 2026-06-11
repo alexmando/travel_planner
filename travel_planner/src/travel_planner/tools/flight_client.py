@@ -2,10 +2,11 @@ import json
 import urllib.parse
 import os
 import http.client
+from datetime import datetime
 
 class KiwiFlightClient:
     def __init__(self):
-        self.base_url = self.base_url = os.getenv("RAPIDAPI_HOST_KIWI")
+        self.base_url = os.getenv("RAPIDAPI_HOST_KIWI")
         self.client_secret = os.getenv("RAPIDAPI_KEY")
         self.headers = {
             'x-rapidapi-key': self.client_secret,
@@ -29,11 +30,20 @@ class KiwiFlightClient:
 
         requested_adults = adults
 
+        try:
+            dep_obj = datetime.strptime(departure_date, "%Y-%m-%d")
+            arr_obj = datetime.strptime(arrival_date, "%Y-%m-%d")
+            fmt_departure = dep_obj.strftime("%Y-%m-%dT00:00:00")
+            fmt_arrival = arr_obj.strftime("%Y-%m-%dT00:00:00")
+        except ValueError:
+            fmt_departure = f"{departure_date}T00:00:00"
+            fmt_arrival = f"{arrival_date}T00:00:00"
+
         query_params = {
             "source": formatted_origin,
             "destination": formatted_destination,
-            "outboundDepartureDate": departure_date,
-            "inboundDepartureDate": arrival_date,
+            "outboundDepartureDate": fmt_departure,
+            "inboundDepartureDate": fmt_arrival,
             "adults": 1,
             "cabinClass": mode,
         }

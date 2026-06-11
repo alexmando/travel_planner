@@ -68,7 +68,7 @@ class FlightSearchTool(BaseTool):
 
         lines = [f"✈ Flights {origin} → {destination} | {len(itineraries)} results\n"]
 
-        for i, trip in enumerate(itineraries[:3], 1):
+        for i, trip in enumerate(itineraries[:10], 1):
             # Price
             price_raw = trip.get("priceEur", {}).get("amount", "N/A")
             try:

@@ -73,13 +73,7 @@ class HotelSearchTool(BaseTool):
     # ── Helpers ────────────────────────────────────────────────
 
     def _resolve_dest_id(self, client: BookingHotelClient, city_name: str) -> str | None:
-        try:
-            conn = http.client.HTTPSConnection(client.base_url)
-            conn.request("GET", f"/v1/hotels/locations?locale=en-gb&name={city_name}", headers=client.headers)
-            locations = json.loads(conn.getresponse().read().decode("utf-8"))
-            return str(locations[0].get("dest_id")) if locations else None
-        except Exception:
-            return None
+        return client.search_locations(city_name)
 
     def _cross_reference(self, results_by_sort: dict[str, list[dict]]) -> dict | None:
         scores: dict[str, float] = {}
@@ -147,7 +141,11 @@ class HotelSearchTool(BaseTool):
         except ValueError:
             nights = "?"
 
-        lines = [f"🏨 Hotels in {city_name} | {check_in}→{check_out} ({nights}n) | {adults} adults | {budget}\n"]
+        dest_id = self._resolve_dest_id(BookingHotelClient(), city_name)
+        lines = [
+            f"dest_id: {dest_id}",
+            f"🏨 Hotels in {city_name} | {check_in}→{check_out} ({nights}n) | {adults} adults | {budget}\n"
+        ]
 
         labels = {"price": "📉 By price", "popularity": "🔥 By popularity", "review_score": "⭐ By review"}
         for sort, hotels in results_by_sort.items():
